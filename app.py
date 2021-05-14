@@ -16,9 +16,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 
 import streamlit as st 
-
 import matplotlib.pyplot as plt
-
 
 # make sure you specify .env
 ML_INFERENCE_SERVER_ENDPOINT = os.environ['ML_INFERENCE_SERVER_ENDPOINT']
@@ -143,7 +141,7 @@ def main():
 			else:
 				prediction_result = remote_inference_request(input_text, selected_model)
 		
-				# st.header(f"**{prediction_result['prediction'][0]['class']}** is the most likely category. Confidence score {prediction_result['prediction'][0]['confidence']}")
+				st.markdown(f"**{prediction_result['prediction'][0]['class']}** is the most likely category.")
 				with st.beta_expander("See detailed scores", expanded=True):
 					st.write(prediction_result)					
 				
@@ -165,35 +163,52 @@ def main():
 			if(selected_model == "Zero-shot classification" ):
 				prediction_result = remote_zeroshot_inference_request(input_text, demos[selected_demo]["labels"], multi_class=True)
 
-				df = pd.DataFrame.from_dict(dict(scores = prediction_result["scores"], 
-												 labels = prediction_result["labels"]))\
-												 .sort_values(by="scores", axis=0, ascending=False)
-				radar_chart_plot(df)	
+				score_threshold = 0.6
+				
+				predicted_scores = np.array(prediction_result["scores"])
+				predicted_labels = prediction_result["labels"]
 
-				with st.beta_expander("See detailed scores", expanded=True):
-					st.write(prediction_result)					
+				if(len(predicted_scores[predicted_scores >= score_threshold]) == 0):
+					
+					st.markdown(f"Model didn't detect any toxic content :)")
+				else:
+					st.markdown(f"Model detected potential toxic content.")
+
+					df = pd.DataFrame.from_dict(dict(scores = predicted_scores, 
+													labels = predicted_labels))\
+													.sort_values(by="scores", axis=0, ascending=False)
+					radar_chart_plot(df)	
+
+					with st.beta_expander("See detailed scores", expanded=True):
+						st.write(prediction_result)					
 			else:
+				
 				prediction_result = remote_inference_request(input_text, selected_model)
 
 				predicted_scores = prediction_result["prediction"][0]["confidence"]
 				predicted_labels = prediction_result["prediction"][0]["class"] 
 
-				result_table = {}
-				for label in demos[selected_demo]["labels"]:
-					result_table[label] = 0
+				if(len(predicted_labels) == 0):
+					st.markdown(f"Model didn't detect any toxic content :)")
+				else:
+					st.markdown(f"Model detected potential toxic content.")
 
-				for idx, predicted_label in enumerate(predicted_labels):
-					result_table[predicted_label] = predicted_scores[idx]
+					result_table = {}
+					for label in demos[selected_demo]["labels"]:
+						result_table[label] = 0
 
-				
-				df = pd.DataFrame.from_dict(dict(scores = result_table.values(), 
-												 labels = result_table.keys()))\
-												 .sort_values(by="scores", axis=0, ascending=False)
-				
-				radar_chart_plot(df)
+					for idx, predicted_label in enumerate(predicted_labels):
+						result_table[predicted_label] = predicted_scores[idx]
 
-				with st.beta_expander("See detailed scores", expanded=True):
-					st.write(result_table)
+					
+					df = pd.DataFrame.from_dict(dict(scores = result_table.values(), 
+													labels = result_table.keys()))\
+													.sort_values(by="scores", axis=0, ascending=False)
+					
+					radar_chart_plot(df)
+
+					with st.beta_expander("See detailed scores", expanded=True):
+						st.write(result_table)
 
 if __name__ == '__main__':
 	main()
